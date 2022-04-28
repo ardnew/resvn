@@ -26,7 +26,7 @@ var (
 )
 
 const (
-	cacheName   = ".apsrepo"
+	cacheName   = ".svnrepo"
 	hostName    = "rstok3-dev02"
 	svnAddrPort = "http://" + hostName + ":3690"
 	webURLRoot  = "viewvc"
