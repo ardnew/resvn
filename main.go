@@ -31,6 +31,7 @@ const (
 	svnAddrPort = "http://" + hostName + ":3690"
 	webURLRoot  = "viewvc"
 	svnURLRoot  = "svn"
+	svnURLIdent = "RESVN_URL"
 )
 
 const newline = "\r\n"
@@ -73,6 +74,9 @@ func usage(set *flag.FlagSet) {
 	ww.caption = ""
 	fmt.Println()
 	fmt.Println("NOTES")
+	fmt.Printf(ww.wrap("The default server URL prefix is defined with environment",
+		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified."))
+	fmt.Println()
 	fmt.Printf(ww.wrap("All arguments following the first occurrence of \"--\" are",
 		"forwarded (in the same order they were given) to each \"svn\" command",
 		"generated. Since the same command may run with multiple repositories,",
@@ -103,6 +107,9 @@ func main() {
 	repoCache := cache.New(cacheName)
 
 	defBaseURL := svnAddrPort
+	if url, ok := os.LookupEnv(svnURLIdent); ok {
+		defBaseURL = url
+	}
 
 	//argBrowse := flag.Bool("b", false, "open Web URL with Web browser")
 	argCaseSen := flag.Bool("c", false, "use [case]-sensitive matching")
@@ -111,7 +118,7 @@ func main() {
 	argLogin := flag.String("l", "", "use `user:pass` to authenticate with SVN or REST API ([login])")
 	argMatchAny := flag.Bool("o", false, "use logical-[or] matching if multiple patterns given")
 	argQuiet := flag.Bool("q", false, "suppress all non-essential and error messages ([quiet])")
-	argBaseURL := flag.String("s", defBaseURL, "prepend [server] `url` to all constructed URLs")
+	argBaseURL := flag.String("s", defBaseURL, "use [server] `url` to construct all URLs")
 	argUpdate := flag.Bool("u", false, "[update] cached repository definitions from server")
 	argWebURL := flag.Bool("w", false, "construct [web] URLs instead of repository URLs")
 	flag.Usage = func() { usage(flag.CommandLine) }

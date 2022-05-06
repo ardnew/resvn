@@ -14,6 +14,9 @@ ifeq "cygwin" "$(shell uname -o | tr 'A-Z' 'a-z')"
   cygopath := $(shell cygpath --windows --long-name --absolute $(call getgoenv,GOPATH,$(GOPATH)))
   GOROOT   := $(shell cygpath --unix --absolute "$(cygoroot)")
   GOPATH   := $(shell cygpath --unix --absolute "$(cygopath)")
+else
+  GOROOT   := $(call getgoenv,GOROOT,$(GOROOT))
+  GOPATH   := $(call getgoenv,GOPATH,$(GOPATH))
 endif
 
 # Verify we have a valid GOPATH, GOROOT that physically exist.
@@ -44,7 +47,7 @@ endif
 
 PROJECT   ?= resvn
 IMPORT    ?= github.com/ardnew/$(PROJECT)
-VERSION   ?= 0.6.0
+VERSION   ?= 0.6.1
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
 # If not defined, guess PLATFORM from current GOOS/GOHOSTOS, GOARCH/GOHOSTARCH.
 # When none of these are set, fallback on linux-amd64.
