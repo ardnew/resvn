@@ -56,6 +56,14 @@ Instead of creating and maintaining this cache manually, `resvn` is capable of r
 
 # Install
 
+A few different options are available for installing. Version numbers being equal, there's no functional difference between them.
+
+### Download executable
+
+> [Latest release](https://github.com/ardnew/resvn/releases/latest)
+
+A zip package containing the executable and documentation is created for each of the most common OS/arch targets for every released version. Check out the [releases](https://github.com/ardnew/resvn/releases) page to see all versions available. 
+
 ### Compile from source code
 
 ```sh
@@ -72,14 +80,19 @@ sudo cp resvn /usr/local/bin
 
 #### Current Go version 1.16 and later:
 
-###### Current release package
+###### Latest release
 ```sh
 go install -v github.com/ardnew/resvn@latest
 ```
 
-###### Tip of development branch (`main`)
+###### Tip of a branch (active development is `main`)
 ```sh
 go install -v github.com/ardnew/resvn@main
+```
+
+###### Unique tag
+```sh
+go install -v github.com/ardnew/resvn@v0.6.2
 ```
 
 #### Legacy Go version 1.15 and earlier:
