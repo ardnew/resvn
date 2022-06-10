@@ -9,7 +9,7 @@
 [![GoDoc][docimg]][docurl] [![Go Report Card][repimg]][repurl]
 
 ```
-github.com/ardnew/resvn 0.6.0 linux-amd64 main@cd3d4e6 2022-04-28T15:24:05Z
+github.com/ardnew/resvn 0.6.2 linux-amd64 main@3e8e9ec 2022-06-10T17:48:13Z
 
 USAGE
   resvn [flags] [repo-pattern ...] [-- svn-command-line ...]
@@ -72,11 +72,17 @@ sudo cp resvn /usr/local/bin
 
 #### Current Go version 1.16 and later:
 
+###### Current release package
 ```sh
 go install -v github.com/ardnew/resvn@latest
 ```
 
-###### Legacy Go version 1.15 and earlier:
+###### Tip of development branch (`main`)
+```sh
+go install -v github.com/ardnew/resvn@main
+```
+
+#### Legacy Go version 1.15 and earlier:
 
 ```sh
 GO111MODULE=off go get -v github.com/ardnew/resvn
