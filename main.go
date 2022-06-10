@@ -49,7 +49,7 @@ func usage(set *flag.FlagSet) {
 		IMPORT, VERSION, PLATFORM, BRANCH, REVISION, BUILDTIME)
 	fmt.Println()
 	fmt.Println("USAGE")
-	fmt.Printf(ww.wrap(exeName(), "[flags] [repo-pattern ...] [-- svn-command-line ...]"))
+	fmt.Print(ww.wrap(exeName(), "[flags] [repo-pattern ...] [-- svn-command-line ...]"))
 	fmt.Println()
 	fmt.Println("FLAGS (mnemonics shown in [brackets])")
 	// Determine the maximum width of the left-hand side containing "-x foo" among
@@ -67,17 +67,17 @@ func usage(set *flag.FlagSet) {
 		name, desc := flag.UnquoteUsage(f)
 		flagName := fmt.Sprintf("-%s %s", f.Name, name)
 		ww.caption = fmt.Sprintf("  %-*s ", margin+4, flagName)
-		fmt.Printf(ww.wrap(desc))
+		fmt.Print(ww.wrap(desc))
 	})
 	ww.indentFirst = true
 	ww.indent = "  "
 	ww.caption = ""
 	fmt.Println()
 	fmt.Println("NOTES")
-	fmt.Printf(ww.wrap("The default server URL prefix is defined with environment",
+	fmt.Print(ww.wrap("The default server URL prefix is defined with environment",
 		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified."))
 	fmt.Println()
-	fmt.Printf(ww.wrap("All arguments following the first occurrence of \"--\" are",
+	fmt.Print(ww.wrap("All arguments following the first occurrence of \"--\" are",
 		"forwarded (in the same order they were given) to each \"svn\" command",
 		"generated. Since the same command may run with multiple repositories,",
 		"placeholder variables may be used in the given command line, which are then",
@@ -85,19 +85,19 @@ func usage(set *flag.FlagSet) {
 		"command is run."))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Printf(ww.wrap("@ = repository URL (must be first character in word)"))
-	fmt.Printf(ww.wrap("^ = repository base name"))
-	fmt.Printf(ww.wrap("& = preceding URL/path argument"))
-	fmt.Printf(ww.wrap("$ = last path component (basename) of \"&\""))
-	fmt.Printf(ww.wrap("! = parent path component (basename of dirname) of \"&\""))
+	fmt.Print(ww.wrap("@ = repository URL (must be first character in word)"))
+	fmt.Print(ww.wrap("^ = repository base name"))
+	fmt.Print(ww.wrap("& = preceding URL/path argument"))
+	fmt.Print(ww.wrap("$ = last path component (basename) of \"&\""))
+	fmt.Print(ww.wrap("! = parent path component (basename of dirname) of \"&\""))
 	ww.indent = "  "
 	fmt.Println()
-	fmt.Printf(ww.wrap("For example, exporting a common tag from all repositories",
+	fmt.Print(ww.wrap("For example, exporting a common tag from all repositories",
 		"with \"DAPA\" in the name into respectively-named subdirectories of the",
 		"current directory:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Printf(ww.wrap("%%", exeName(), "DAPA", "--", "export @/tags/foo ./^/tags/foo"))
+	fmt.Print(ww.wrap("%%", exeName(), "DAPA", "--", "export @/tags/foo ./^/tags/foo"))
 	ww.indent = "  "
 	fmt.Println()
 }
@@ -221,7 +221,6 @@ func main() {
 				fmt.Printf("%s/%s/%s", *argBaseURL, urlRoot, repo)
 				fmt.Println()
 			}
-		} else {
 		}
 	} else {
 		if *argMatchAny {
@@ -255,10 +254,42 @@ func main() {
 	}
 }
 
+func trimTrailingRune(s string, r rune, trim0 bool) string {
+	if s == "" {
+		return s
+	}
+	// Iterate over runes instead of bytes for UTF-8 compat.
+	su := []rune(s)
+	// Find rune count of s without trailing run of r.
+	ns := len(su)
+	for ; ns > 0; ns-- {
+		if su[ns-1] != r {
+			break
+		}
+	}
+	switch ns {
+	// s consits entirely of r
+	case 0:
+		if trim0 {
+			return "" // Trim sole r at index 0 if trim0
+		}
+		return string(r) // Keep one r (e.g., root "/")
+
+	// Return s if no trailing run of r was found
+	case len(su):
+		return s
+
+	// Otherwise, remove trailing run of r
+	default:
+		return string(su[:ns])
+	}
+}
+
 func expand(str string, url, base, prec string) string {
 	for len(str) > 0 && str[0] == '@' {
 		str = url + str[1:]
 	}
+	prec = trimTrailingRune(prec, '/', false)
 	bn := filepath.Base(prec)
 	pn := filepath.Base(filepath.Dir(prec))
 	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(

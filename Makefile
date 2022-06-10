@@ -47,7 +47,7 @@ endif
 
 PROJECT   ?= resvn
 IMPORT    ?= github.com/ardnew/$(PROJECT)
-VERSION   ?= 0.6.1
+VERSION   ?= 0.6.2
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
 # If not defined, guess PLATFORM from current GOOS/GOHOSTOS, GOARCH/GOHOSTARCH.
 # When none of these are set, fallback on linux-amd64.
@@ -156,7 +156,6 @@ tbzext := .tar.bz2
 zipext := .zip
 
 env    := \env
-export := \export
 echo   := \echo
 test   := \test
 cd     := \cd
