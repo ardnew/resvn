@@ -29,36 +29,50 @@ const (
 )
 
 type Cache struct {
-	FilePath string
-	List     []string
+	FilePath     string
+	AuthFilePath string
+	List         []string
 }
 
-func New(name string) *Cache {
+func findFile(name string, defaultPath string) (path string) {
 	exists := func(path string) bool {
 		_, err := os.Stat(path)
 		return err == nil
 	}
-	if home, err := os.UserHomeDir(); nil == err {
-		if path := filepath.Join(home, name); exists(path) {
-			return &Cache{FilePath: path, List: []string{}}
+	if home, err := os.UserHomeDir(); err == nil {
+		if path = filepath.Join(home, name); exists(path) {
+			return
 		}
 	}
 	if home, ok := os.LookupEnv("HOME"); ok {
-		if path := filepath.Join(home, name); exists(path) {
-			return &Cache{FilePath: path, List: []string{}}
+		if path = filepath.Join(home, name); exists(path) {
+			return
 		}
 	}
 	if exe, err := os.Executable(); nil == err {
-		if path := filepath.Join(filepath.Dir(exe), name); exists(path) {
-			return &Cache{FilePath: path, List: []string{}}
+		if path = filepath.Join(filepath.Dir(exe), name); exists(path) {
+			return
 		}
 	}
 	if pwd, err := os.Getwd(); nil == err {
-		if path := filepath.Join(pwd, name); exists(path) {
-			return &Cache{FilePath: path, List: []string{}}
+		if path = filepath.Join(pwd, name); exists(path) {
+			return
 		}
 	}
-	return &Cache{FilePath: filepath.Join(".", name), List: []string{}}
+	// Could not find file, use the defaultPath if given
+	if defaultPath != "" {
+		return filepath.Join(defaultPath, name)
+	}
+	// No default =>> no file
+	return ""
+}
+
+func New(name, auth string) *Cache {
+	return &Cache{
+		FilePath:     findFile(name, "."),
+		AuthFilePath: findFile(auth, ""),
+		List:         []string{},
+	}
 }
 
 func (c *Cache) Sync(filePath string, update bool, user string, pass string) error {
@@ -152,17 +166,21 @@ func (c *Cache) update(user string, pass string) (*os.File, error) {
 		SetRetryCount(3).
 		SetHostURL(apiURL)
 
+	var err error
 	if user == "" && pass == "" {
-		var err error
 		user, pass, err = cachedCredentials(authRealm)
-		if nil != err {
+	}
+	if err == errAgentCachedCredentials {
+		log.Printf("using agent-based cached credentials (%s): %s", pass, user)
+	} else {
+		if err != nil {
 			return nil, err
 		}
+		api.SetBasicAuth(user, pass)
 	}
-	api.SetBasicAuth(user, pass)
 
 	resp := apiRespRepo{}
-	_, err := api.R().
+	_, err = api.R().
 		SetHeader("Accept", "application/"+apiFormat).
 		SetQueryParams(map[string]string{"format": apiFormat}).
 		SetResult(&resp).
@@ -190,9 +208,11 @@ func (c *Cache) update(user string, pass string) (*os.File, error) {
 	return repoFile, nil
 }
 
+var errAgentCachedCredentials = errors.New("credentials cached via authentication agent")
+
 func cachedCredentials(realm string) (user string, pass string, err error) {
 	c := exec.Command("svn", "auth", "--show-passwords", realm)
-	r, err := regexp.Compile(`(?mi)^(Password|Username):\s*(.*)$`)
+	r, err := regexp.Compile(`(?mi)^(Password|Password cache|Username):\s*(.*)$`)
 	if nil != err {
 		return "", "", err
 	}
@@ -211,6 +231,9 @@ func cachedCredentials(realm string) (user string, pass string, err error) {
 			user = string(u[2])
 		case "password":
 			pass = string(u[2])
+		case "password cache":
+			pass = string(u[2])
+			err = errAgentCachedCredentials
 		}
 	}
 	return

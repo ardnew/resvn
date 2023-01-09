@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,11 +29,16 @@ var (
 
 const (
 	cacheName   = ".svnrepo"
+	authName    = ".svnauth"
 	hostName    = "rstok3-dev02"
 	svnAddrPort = "http://" + hostName + ":3690"
 	webURLRoot  = "viewvc"
 	svnURLRoot  = "svn"
 	svnURLIdent = "RESVN_URL"
+)
+
+var (
+	globalArg = []string{"--force-interactive"}
 )
 
 const newline = "\r\n"
@@ -67,6 +74,14 @@ func usage(set *flag.FlagSet) {
 		name, desc := flag.UnquoteUsage(f)
 		flagName := fmt.Sprintf("-%s %s", f.Name, name)
 		ww.caption = fmt.Sprintf("  %-*s ", margin+4, flagName)
+		if bv, ok := f.Value.(interface{ IsBoolFlag() bool }); !ok || !bv.IsBoolFlag() {
+			if f.DefValue != "" {
+				desc = strings.Join(
+					[]string{desc, fmt.Sprintf("{%q}", f.DefValue)},
+					" ",
+				)
+			}
+		}
 		fmt.Print(ww.wrap(desc))
 	})
 	ww.indentFirst = true
@@ -104,7 +119,7 @@ func usage(set *flag.FlagSet) {
 
 func main() {
 
-	repoCache := cache.New(cacheName)
+	repoCache := cache.New(cacheName, authName)
 
 	defBaseURL := svnAddrPort
 	if url, ok := os.LookupEnv(svnURLIdent); ok {
@@ -116,6 +131,7 @@ func main() {
 	argDryRun := flag.Bool("d", false, "print commands which would be executed ([dry-run])")
 	argRepoFile := flag.String("f", repoCache.FilePath, "use repository definitions from [file] `path`")
 	argLogin := flag.String("l", "", "use `user:pass` to authenticate with SVN or REST API ([login])")
+	argAuthFile := flag.String("L", repoCache.AuthFilePath, "use file `path` contents as [login] arguments")
 	argMatchAny := flag.Bool("o", false, "use logical-[or] matching if multiple patterns given")
 	argQuiet := flag.Bool("q", false, "suppress all non-essential and error messages ([quiet])")
 	argBaseURL := flag.String("s", defBaseURL, "use [server] `url` to construct all URLs")
@@ -144,14 +160,41 @@ func main() {
 		}
 	}
 
-	user, pass := "", ""
-	if *argLogin != "" {
-		s := strings.SplitN(*argLogin, ":", 2)
-		if len(s) > 0 {
-			user = s[0]
+	parseUserPass := func(str string) (user, pass string, ok bool) {
+		s := strings.SplitN(str, ":", 2)
+		if ok = len(s) > 1; ok {
+			user, pass = s[0], s[1]
 		}
-		if len(s) > 1 {
-			pass = s[1]
+		return
+	}
+
+	var user, pass string
+	tryLogin := func() (ok bool) {
+		user, pass, ok = parseUserPass(*argLogin)
+		return
+	}
+	tryAuthFile := func() (ok bool) {
+		if f, err := os.Open(*argAuthFile); err == nil {
+			defer f.Close()
+			s := bufio.NewScanner(f)
+			for s.Scan() {
+				if user, pass, ok = parseUserPass(s.Text()); ok {
+					break
+				}
+			}
+		}
+		return
+	}
+	if *argLogin != "" && *argAuthFile != "" {
+		if !tryLogin() && !tryAuthFile() {
+			log.Fatalln("failed to parse credentials (command line, file)")
+		}
+	} else {
+		if *argLogin != "" && !tryLogin() {
+			log.Fatalln("failed to parse credentials (command line)")
+		}
+		if *argAuthFile != "" && !tryAuthFile() {
+			log.Fatalln("failed to parse credentials (file)")
 		}
 	}
 
@@ -178,13 +221,15 @@ func main() {
 		for _, repo := range match {
 			url := fmt.Sprintf("%s/%s/%s", *argBaseURL, urlRoot, repo)
 
-			expArg := make([]string, len(cmdArg))
+			gn := len(globalArg)
+			expArg := make([]string, gn+len(cmdArg))
+			copy(expArg, globalArg)
 			for i, s := range cmdArg {
 				prec := ""
 				if i > 0 {
-					prec = expArg[i-1]
+					prec = expArg[gn+i-1]
 				}
-				expArg[i] = expand(s, url, repo, prec)
+				expArg[gn+i] = expand(s, url, repo, prec)
 			}
 			// Print the command line being executed
 			var cli strings.Builder
@@ -200,10 +245,7 @@ func main() {
 			}
 			log.Println("| svn " + cli.String())
 			if !*argDryRun {
-				out, err := run(expArg...)
-				if out != nil && out.Len() > 0 {
-					fmt.Print(out.String())
-				}
+				err := run(expArg...)
 				switch {
 				case errors.Is(err, &exec.ExitError{}):
 					log.Fatalln("error:", string(err.(*exec.ExitError).Stderr))
@@ -306,19 +348,32 @@ func nonEmpty(arg ...string) []string {
 	return result
 }
 
-func run(arg ...string) (*strings.Builder, error) {
-	var b, e strings.Builder
+type scribe struct {
+	io.Writer
+	bytes.Buffer
+}
+
+func newScribe(w io.Writer) *scribe { return &scribe{Writer: w} }
+
+func (s *scribe) Write(b []byte) (int, error) {
+	s.Buffer.Write(b)
+	return s.Writer.Write(b)
+}
+
+func run(arg ...string) error {
+	stderr := newScribe(os.Stderr)
 	cmd := exec.Command("svn", nonEmpty(arg...)...)
-	cmd.Stdout = &b
-	cmd.Stderr = &e
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = stderr
+	cmd.Env = nil // use parent process
 	err := cmd.Run()
-	if e.Len() > 0 {
+	if stderr.Len() > 0 {
 		if err != nil {
-			return &b, fmt.Errorf("%w\r\n%s", err, strings.TrimSpace(e.String()))
+			return fmt.Errorf("%w\r\n%s", err, strings.TrimSpace(stderr.String()))
 		}
-		return &b, errors.New(strings.TrimSpace(e.String()))
+		return errors.New(strings.TrimSpace(stderr.String()))
 	}
-	return &b, err
+	return err
 }
 
 type wordWrap struct {
