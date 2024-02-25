@@ -75,14 +75,18 @@ func New(name, auth string) *Cache {
 	}
 }
 
-func (c *Cache) Sync(filePath string, update bool, user string, pass string) error {
+func (c *Cache) Sync(filePath string, update bool, url string, user string, pass string) error {
 
 	c.FilePath = filePath
 	c.List = []string{} // clear existing list
 
 	if update {
+		url = strings.TrimSpace(url)
+		if url == "" {
+			return fmt.Errorf("undefined REST API URL: try help (-h)")
+		}
 		// write all repos to a new temporary file
-		tmp, err := c.update(user, pass)
+		tmp, err := c.update(url, user, pass)
 		if nil != err {
 			return err
 		}
@@ -156,10 +160,9 @@ type apiRepo struct {
 	Status  string `json:"status"`
 }
 
-func (c *Cache) update(user string, pass string) (*os.File, error) {
+func (c *Cache) update(url string, user string, pass string) (*os.File, error) {
 
-	apiURL := fmt.Sprintf("%s://%s:%d/%s",
-		apiProtocol, apiHost, apiPort, apiURLRoot)
+	apiURL := fmt.Sprintf("%s/%s", url, apiURLRoot)
 
 	api := resty.New().
 		SetDisableWarn(true).

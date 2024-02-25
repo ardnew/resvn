@@ -30,11 +30,10 @@ var (
 const (
 	cacheName   = ".svnrepo"
 	authName    = ".svnauth"
-	hostName    = "rstok3-dev02"
-	svnAddrPort = "http://" + hostName + ":3690"
 	webURLRoot  = "viewvc"
 	svnURLRoot  = "svn"
 	svnURLIdent = "RESVN_URL"
+	svnAPIIdent = "RESVN_API"
 )
 
 var (
@@ -90,7 +89,12 @@ func usage(set *flag.FlagSet) {
 	fmt.Println()
 	fmt.Println("NOTES")
 	fmt.Print(ww.wrap("The default server URL prefix is defined with environment",
-		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified."))
+		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified. ",
+		"The default REST API URL prefix is defined with environment variable $"+
+			svnAPIIdent, "and used when flag \"-S\" is unspecified. The REST API is",
+		"optional because it is only used for automatic generation of the known SVN",
+		"repository cache (otherwise given with flag \"-f\").",
+		"URLs may include both protocol and port, e.g., \"http://server.com:3690\"."))
 	fmt.Println()
 	fmt.Print(ww.wrap("All arguments following the first occurrence of \"--\" are",
 		"forwarded (in the same order they were given) to each \"svn\" command",
@@ -119,12 +123,17 @@ func usage(set *flag.FlagSet) {
 
 func main() {
 
-	repoCache := cache.New(cacheName, authName)
-
-	defBaseURL := svnAddrPort
+	var defBaseURL string
 	if url, ok := os.LookupEnv(svnURLIdent); ok {
 		defBaseURL = url
 	}
+
+	var defRESTAPI string
+	if url, ok := os.LookupEnv(svnAPIIdent); ok {
+		defRESTAPI = url
+	}
+
+	repoCache := cache.New(cacheName, authName)
 
 	//argBrowse := flag.Bool("b", false, "open Web URL with Web browser")
 	argCaseSen := flag.Bool("c", false, "use [case]-sensitive matching")
@@ -135,6 +144,7 @@ func main() {
 	argMatchAny := flag.Bool("o", false, "use logical-[or] matching if multiple patterns given")
 	argQuiet := flag.Bool("q", false, "suppress all non-essential and error messages ([quiet])")
 	argBaseURL := flag.String("s", defBaseURL, "use [server] `url` to construct all URLs")
+	argRESTAPI := flag.String("S", defRESTAPI, "use [server] `url` to construct REST API queries")
 	argUpdate := flag.Bool("u", false, "[update] cached repository definitions from server")
 	argWebURL := flag.Bool("w", false, "construct [web] URLs instead of repository URLs")
 	flag.Usage = func() { usage(flag.CommandLine) }
@@ -145,7 +155,7 @@ func main() {
 		log.SetOutput(io.Discard)
 	} else {
 		log.SetFlags(log.LstdFlags | log.Lmsgprefix)
-		log.SetPrefix("-- ")
+		log.SetPrefix("• ")
 	}
 
 	// Keep all arguments other than the first occurrence of "--".
@@ -185,22 +195,36 @@ func main() {
 		}
 		return
 	}
-	if *argLogin != "" && *argAuthFile != "" {
-		if !tryLogin() && !tryAuthFile() {
-			log.Fatalln("failed to parse credentials (command line, file)")
+
+	credsParseError := func(desc, rsrc string) error {
+		part := []string{"failed to parse credentials"}
+		if desc = strings.TrimSpace(desc); desc != "" {
+			part = append(part, desc)
 		}
-	} else {
-		if *argLogin != "" && !tryLogin() {
-			log.Fatalln("failed to parse credentials (command line)")
+		if rsrc = strings.TrimSpace(rsrc); rsrc != "" {
+			part = append(part, fmt.Sprintf("%q", rsrc))
 		}
-		if *argAuthFile != "" && !tryAuthFile() {
-			log.Fatalln("failed to parse credentials (file)")
-		}
+		return fmt.Errorf("%s", strings.Join(part, ": "))
 	}
 
-	err := repoCache.Sync(*argRepoFile, *argUpdate, user, pass)
+	var errb strings.Builder
+	if *argLogin != "" && !tryLogin() {
+		errb.WriteString(credsParseError("command-line", *argLogin).Error() + newline)
+	}
+	if *argAuthFile != "" && !tryAuthFile() {
+		errb.WriteString(credsParseError("file", *argAuthFile).Error() + newline)
+	}
+	if errb.Len() > 0 {
+		log.Fatal(errb.String())
+	}
+
+	err := repoCache.Sync(*argRepoFile, *argUpdate, *argRESTAPI, user, pass)
 	if nil != err {
 		log.Fatalln(err)
+	}
+
+	if strings.TrimSpace(*argBaseURL) == "" {
+		log.Fatalln("undefined server URL: try help (-h)")
 	}
 
 	*argBaseURL = strings.TrimRight(*argBaseURL, "/")
@@ -243,7 +267,7 @@ func main() {
 					cli.WriteString(s)
 				}
 			}
-			log.Println("| svn " + cli.String())
+			log.Println("» svn " + cli.String())
 			if !*argDryRun {
 				err := run(expArg...)
 				switch {
@@ -467,5 +491,5 @@ func (ww *wordWrap) wrap(word ...string) string {
 	if ls != ww.indent {
 		lb.WriteString(ls + newline)
 	}
-	return strings.TrimRight(lb.String(), "\r\n") + newline
+	return strings.TrimRight(lb.String(), newline) + newline
 }
