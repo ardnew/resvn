@@ -9,23 +9,36 @@
 [![GoDoc][docimg]][docurl] [![Go Report Card][repimg]][repurl]
 
 ```
-github.com/ardnew/resvn 0.6.2 linux-amd64 main@3e8e9ec 2022-06-10T17:48:13Z
+github.com/ardnew/resvn 0.10.0 darwin-amd64 main@573ee2a 2024-03-19T22:08:19Z
 
 USAGE
-  resvn [flags] [repo-pattern ...] [-- svn-command-line ...]
+  resvn [flags] [match ...] [! ignore ...] [-- command ...]
 
 FLAGS (mnemonics shown in [brackets])
+  -L path        use file path contents as [login] arguments
+                 {"/Users/andrew/.svnauth"}
+  -S url         use [server] url to construct REST API queries
+                 {"http://localhost:3343"}
   -c             use [case]-sensitive matching
   -d             print commands which would be executed ([dry-run])
   -f path        use repository definitions from [file] path
+                 {"/Users/andrew/.svnrepo"}
   -l user:pass   use user:pass to authenticate with SVN or REST API ([login])
   -o             use logical-[or] matching if multiple patterns given
   -q             suppress all non-essential and error messages ([quiet])
-  -s url         use [server] url to construct all URLs (default $RESVN_URL)
+  -s url         use [server] url to construct all URLs
+                 {"http://localhost:3690"}
   -u             [update] cached repository definitions from server
   -w             construct [web] URLs instead of repository URLs
 
 NOTES
+  The default server URL prefix is defined with environment variable $RESVN_URL
+  and used when flag "-s" is unspecified. The default REST API URL prefix is
+  defined with environment variable $RESVN_API and used when flag "-S" is
+  unspecified. The REST API is optional because it is only used for automatic
+  generation of the known SVN repository cache (otherwise given with flag "-f").
+  URLs may include both protocol and port, e.g., "http://server.com:3690".
+
   All arguments following the first occurrence of "--" are forwarded (in the
   same order they were given) to each "svn" command generated. Since the same
   command may run with multiple repositories, placeholder variables may be used
@@ -39,9 +52,10 @@ NOTES
       ! = parent path component (basename of dirname) of "&"
 
   For example, exporting a common tag from all repositories with "DAPA" in the
-  name into respectively-named subdirectories of the current directory:
+  name (excluding any that match "Calc" or "DIOS") into respectively-named
+  subdirectories of the current directory:
 
-      % resvn DAPA -- export @/tags/foo ./^/tags/foo
+      %% resvn DAPA ! Calc DIOS -- export @/tags/foo ./^/tags/foo
 ```
 
 # Usage
