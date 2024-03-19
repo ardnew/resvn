@@ -117,34 +117,57 @@ func (c *Cache) Sync(filePath string, update bool, url string, user string, pass
 	return nil
 }
 
-func (c *Cache) Match(pattern []string, ignoreCase bool) ([]string, error) {
+func (c *Cache) Match(
+	pattern []string, ignore []string, ignoreCase bool) ([]string, error) {
 
-	expr := make([]*regexp.Regexp, len(pattern))
+	compile := func(re ...string) ([]*regexp.Regexp, error) {
+		x := make([]*regexp.Regexp, len(re))
+		for i, p := range re {
+			if ignoreCase {
+				p = "(?i)" + p
+			}
+			e, err := regexp.Compile(p)
+			if err != nil {
+				return nil, err
+			}
+			x[i] = e
+		}
+		return x, nil
+	}
 
-	for i, p := range pattern {
-		if ignoreCase {
-			p = "(?i)" + p
-		}
-		e, err := regexp.Compile(p)
-		if err != nil {
-			return nil, err
-		}
-		expr[i] = e
+	expr, err := compile(pattern...)
+	if err != nil {
+		return nil, err
+	}
+	cond, err := compile(ignore...)
+	if err != nil {
+		return nil, err
 	}
 
 	m := []string{}
 	for _, repo := range c.List {
+		// First check if the repo matches ANY ignore pattern
+		avoid := false
+		for _, e := range cond {
+			if avoid = e.MatchString(string(repo)); avoid {
+				break // matched an ignore pattern, no need to test others
+			}
+		}
+		if avoid {
+			continue // skip this ignored repo
+		}
+		// Next check if the repo matches ALL select patterns
 		match := false
 		for _, e := range expr {
 			if match = e.MatchString(string(repo)); !match {
-				break
+				break // did not match some select pattern, no need to test others
 			}
 		}
 		if match {
+			// all tests passed, append this repo to returned slice
 			m = append(m, string(repo))
 		}
 	}
-
 	return m, nil
 }
 

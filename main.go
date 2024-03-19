@@ -55,7 +55,7 @@ func usage(set *flag.FlagSet) {
 		IMPORT, VERSION, PLATFORM, BRANCH, REVISION, BUILDTIME)
 	fmt.Println()
 	fmt.Println("USAGE")
-	fmt.Print(ww.wrap(exeName(), "[flags] [repo-pattern ...] [-- svn-command-line ...]"))
+	fmt.Print(ww.wrap(exeName(), "[flags] [match ...] [! ignore ...] [-- command ...]"))
 	fmt.Println()
 	fmt.Println("FLAGS (mnemonics shown in [brackets])")
 	// Determine the maximum width of the left-hand side containing "-x foo" among
@@ -112,11 +112,12 @@ func usage(set *flag.FlagSet) {
 	ww.indent = "  "
 	fmt.Println()
 	fmt.Print(ww.wrap("For example, exporting a common tag from all repositories",
-		"with \"DAPA\" in the name into respectively-named subdirectories of the",
-		"current directory:"))
+		"with \"DAPA\" in the name (excluding any that match \"Calc\" or \"DIOS\")",
+		"into respectively-named subdirectories of the current directory:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Print(ww.wrap("%%", exeName(), "DAPA", "--", "export @/tags/foo ./^/tags/foo"))
+	fmt.Print(ww.wrap("%%", exeName(), "DAPA", "\\!", "Calc", "DIOS", "--",
+		"export @/tags/foo ./^/tags/foo"))
 	ww.indent = "  "
 	fmt.Println()
 }
@@ -159,14 +160,22 @@ func main() {
 	}
 
 	// Keep all arguments other than the first occurrence of "--".
-	patArg := []string{}
+	patArg := []string{} // repo-include patterns
+	ignArg := []string{} // repo-exclude patterns
 	cmdArg := []string{}
 	ptrArg := &patArg
 	for _, a := range flag.Args() {
-		if strings.TrimSpace(a) == "--" {
+		switch {
+		case strings.TrimSpace(a) == "--":
 			ptrArg = &cmdArg
-		} else {
-			*ptrArg = append(*ptrArg, a)
+		case strings.HasPrefix(a, "!"):
+			ptrArg = &ignArg
+			a = a[1:]
+			fallthrough
+		default:
+			if ptrArg != nil && len(a) > 0 {
+				*ptrArg = append(*ptrArg, a)
+			}
 		}
 	}
 
@@ -291,7 +300,7 @@ func main() {
 	} else {
 		if *argMatchAny {
 			for _, arg := range patArg {
-				match, err := repoCache.Match([]string{arg}, !*argCaseSen)
+				match, err := repoCache.Match([]string{arg}, ignArg, !*argCaseSen)
 				if nil != err {
 					log.Println("warning: skipping invalid expression:", arg)
 				}
@@ -302,7 +311,7 @@ func main() {
 				}
 			}
 		} else {
-			match, err := repoCache.Match(patArg, !*argCaseSen)
+			match, err := repoCache.Match(patArg, ignArg, !*argCaseSen)
 			if nil != err {
 				log.Fatalln("error: invalid expression(s):",
 					"[", strings.Join(patArg, ", "), "]")
@@ -407,6 +416,20 @@ type wordWrap struct {
 	indentFirst bool
 }
 
+func unescape(s string) string {
+	n := 0
+	return strings.Map(func(r rune) rune {
+		switch {
+		// drop only the first escape rune '\'
+		case n == 0 && r == '\\':
+			n++
+			return rune(-1)
+		default:
+			return r
+		}
+	}, s)
+}
+
 func (ww *wordWrap) wrap(word ...string) string {
 	var sb strings.Builder
 	var rp []rune
@@ -419,6 +442,11 @@ func (ww *wordWrap) wrap(word ...string) string {
 			if t := strings.TrimSpace(w); t != "" {
 				// Word contains a visible symbol
 				rw, rt := []rune(w), []rune(t)
+				// Word is escaped
+				escap := len(rw) > 1 && rw[0] == '\\'
+				if escap {
+					w, t, rw, rt = unescape(w), unescape(t), rw[1:], rt[1:]
+				}
 				// Word is the first word being added
 				first := sb.Len() == 0
 				// Word is a punctuation character
@@ -427,17 +455,16 @@ func (ww *wordWrap) wrap(word ...string) string {
 				wsBeg := unicode.IsSpace(rw[0])
 				// Previous word ends with whitespace
 				wsEnd := (len(rp) > 0) && unicode.IsSpace(rp[len(rp)-1])
-				if !first && !punct && !wsBeg && !wsEnd {
+				if !first && (!punct || escap) && !wsBeg && !wsEnd {
 					sb.WriteRune(' ')
 				}
-				if punct {
+				switch {
+				case punct:
 					sb.WriteString(t)
-				} else {
-					if last {
-						sb.WriteString(w[:strings.LastIndex(w, t)+len(t)])
-					} else {
-						sb.WriteString(w)
-					}
+				case last:
+					sb.WriteString(w[:strings.LastIndex(w, t)+len(t)])
+				default:
+					sb.WriteString(w)
 				}
 				rp = rw
 			}
