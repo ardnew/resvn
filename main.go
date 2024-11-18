@@ -34,10 +34,28 @@ const (
 	svnURLRoot  = "svn"
 	svnURLIdent = "RESVN_URL"
 	svnAPIIdent = "RESVN_API"
+	svnARGIdent = "RESVN_ARG"
 )
 
+type svnArg []string
+
+func (a *svnArg) Set(s string) error {
+	if a == nil {
+		*a = svnArg{}
+	}
+	*a = append(*a, strings.Fields(s)...)
+	return nil
+}
+
+func (a *svnArg) String() string {
+	if a == nil {
+		return ""
+	}
+	return strings.Join(*a, " ")
+}
+
 var (
-	globalArg = []string{"--force-interactive"}
+	defaultArg = svnArg{"--force-interactive"}
 )
 
 const newline = "\r\n"
@@ -116,9 +134,27 @@ func usage(set *flag.FlagSet) {
 		"into respectively-named subdirectories of the current directory:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Print(ww.wrap("%%", exeName(), "DAPA", "\\!", "Calc", "DIOS", "--",
+	fmt.Print(ww.wrap("%", exeName(), "DAPA", "\\!", "Calc", "DIOS", "--",
 		"export @/tags/foo ./^/tags/foo"))
 	ww.indent = "  "
+	fmt.Println()
+	fmt.Print(ww.wrap("Besides the invoked subcommand's options, the \"svn\"",
+		"command also recognizes several global options that are applicable to all",
+		"subcommands. Shown below, these can be provided via environment variable",
+		"or via command-line flag. If both are provided, the command-line flag takes",
+		"precedence. Multiple global options can be expressed in a single command-line",
+		"flag's argument or by providing the command-line flag multiple times. The",
+		"following examples are all functionally equivalent:"))
+	fmt.Println()
+	ww.indent = "      "
+	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo --password=bar\""))
+	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo\" -a \"--password=bar\""))
+	fmt.Print(ww.wrap("%", svnARGIdent + "=\"--username=foo --password=bar\"", exeName()))
+	ww.indent = "  "
+	fmt.Println()
+	fmt.Print(ww.wrap("The global options are \"" + defaultArg.String() + "\", by default.",
+		"If either environment variable or command-line flag are provided, they will",
+		"take precedence and omit the default option(s)."))
 	fmt.Println()
 }
 
@@ -134,8 +170,14 @@ func main() {
 		defRESTAPI = url
 	}
 
+	defSVNArgs := defaultArg
+	if arg, ok := os.LookupEnv(svnARGIdent); ok {
+		defSVNArgs = svnArg{arg}
+	}
+
 	repoCache := cache.New(cacheName, authName)
 
+	var argSVNArgs svnArg
 	//argBrowse := flag.Bool("b", false, "open Web URL with Web browser")
 	argCaseSen := flag.Bool("c", false, "use [case]-sensitive matching")
 	argDryRun := flag.Bool("d", false, "print commands which would be executed ([dry-run])")
@@ -146,11 +188,16 @@ func main() {
 	argQuiet := flag.Bool("q", false, "suppress all non-essential and error messages ([quiet])")
 	argBaseURL := flag.String("s", defBaseURL, "use [server] `url` to construct all URLs")
 	argRESTAPI := flag.String("S", defRESTAPI, "use [server] `url` to construct REST API queries")
+	flag.Var(&argSVNArgs, "a", "append each [argument] `arg` to all SVN commands")
 	argUpdate := flag.Bool("u", false, "[update] cached repository definitions from server")
 	argWebURL := flag.Bool("w", false, "construct [web] URLs instead of repository URLs")
 	flag.Usage = func() { usage(flag.CommandLine) }
 
 	flag.Parse()
+
+	if argSVNArgs == nil {
+		argSVNArgs = defSVNArgs
+	}
 
 	if *argQuiet {
 		log.SetOutput(io.Discard)
@@ -254,9 +301,9 @@ func main() {
 		for _, repo := range match {
 			url := fmt.Sprintf("%s/%s/%s", *argBaseURL, urlRoot, repo)
 
-			gn := len(globalArg)
+			gn := len(argSVNArgs)
 			expArg := make([]string, gn+len(cmdArg))
-			copy(expArg, globalArg)
+			copy(expArg, argSVNArgs)
 			for i, s := range cmdArg {
 				prec := ""
 				if i > 0 {

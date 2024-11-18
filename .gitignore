@@ -4,3 +4,5 @@ bin
 dist
 .gdb_history
 .Makefile.targets
+.svnrepo
+resvn
