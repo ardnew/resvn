@@ -149,10 +149,10 @@ func usage(set *flag.FlagSet) {
 	ww.indent = "      "
 	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo --password=bar\""))
 	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo\" -a \"--password=bar\""))
-	fmt.Print(ww.wrap("%", svnARGIdent + "=\"--username=foo --password=bar\"", exeName()))
+	fmt.Print(ww.wrap("%", svnARGIdent+"=\"--username=foo --password=bar\"", exeName()))
 	ww.indent = "  "
 	fmt.Println()
-	fmt.Print(ww.wrap("The global options are \"" + defaultArg.String() + "\", by default.",
+	fmt.Print(ww.wrap("The global options are \""+defaultArg.String()+"\", by default.",
 		"If either environment variable or command-line flag are provided, they will",
 		"take precedence and omit the default option(s)."))
 	fmt.Println()
