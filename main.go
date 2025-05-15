@@ -72,10 +72,17 @@ func usage(set *flag.FlagSet) {
 	fmt.Printf("%s %s %s %s@%s %s"+newline,
 		IMPORT, VERSION, PLATFORM, BRANCH, REVISION, BUILDTIME)
 	fmt.Println()
-	fmt.Println("USAGE")
+	fmt.Println("  ╓─────────╖ ")
+	fmt.Println("•┊║┊ USAGE ┊║┊")
+	fmt.Println("  ╙─────────╜ ")
+	fmt.Println()
 	fmt.Print(ww.wrap(exeName(), "[flags] [match ...] [! ignore ...] [-- command ...]"))
 	fmt.Println()
-	fmt.Println("FLAGS (mnemonics shown in [brackets])")
+	fmt.Println()
+	fmt.Println(ww.indent + "       ╭┈┄╌                         ╌┄┈╮")
+	fmt.Println(ww.indent + "FLAGS  │ mnemonics shown in [brackets] │")
+	fmt.Println(ww.indent + "─────  ╰┈┄╌                         ╌┄┈╯")
+	fmt.Println()
 	// Determine the maximum width of the left-hand side containing "-x foo" among
 	// all defined flags
 	margin := 0
@@ -85,12 +92,20 @@ func usage(set *flag.FlagSet) {
 			margin = width
 		}
 	})
-	ww.indentFirst = false
-	ww.indent = fmt.Sprintf("  %*s ", margin+4, "")
+	formatDef := func(margin int, name, sym, desc string) string {
+		indentFirst, indent, caption := ww.indentFirst, ww.indent, ww.caption
+		ww.indentFirst = false
+		ww.indent = fmt.Sprintf("  %*s ", margin, "")
+		ww.caption = fmt.Sprintf("  %-*s ", margin, 
+			strings.Join([]string{sym,name}, " "))
+		result := ww.wrap(desc)
+		ww.indentFirst = indentFirst
+		ww.indent = indent
+		ww.caption = caption
+		return result
+	}
 	set.VisitAll(func(f *flag.Flag) {
 		name, desc := flag.UnquoteUsage(f)
-		flagName := fmt.Sprintf("-%s %s", f.Name, name)
-		ww.caption = fmt.Sprintf("  %-*s ", margin+4, flagName)
 		if bv, ok := f.Value.(interface{ IsBoolFlag() bool }); !ok || !bv.IsBoolFlag() {
 			if f.DefValue != "" {
 				desc = strings.Join(
@@ -99,57 +114,116 @@ func usage(set *flag.FlagSet) {
 				)
 			}
 		}
-		fmt.Print(ww.wrap(desc))
+		fmt.Print(formatDef(margin+4, name, "-" + f.Name, desc))
 	})
-	ww.indentFirst = true
-	ww.indent = "  "
-	ww.caption = ""
 	fmt.Println()
-	fmt.Println("NOTES")
+	fmt.Println()
+	fmt.Println(ww.indent + "PARAMETERS")
+	fmt.Println(ww.indent + "──────────")
+	fmt.Println()
+	fmt.Print(formatDef(margin-4, "@", "", "repository URL (must be first character in word)"))
+	fmt.Print(formatDef(margin-4, "^", "", "repository base name"))
+	fmt.Print(formatDef(margin-4, "&", "", "preceding URL/path argument"))
+	fmt.Print(formatDef(margin-4, "$", "", "last path component (basename) of \"&\""))
+	fmt.Print(formatDef(margin-4, "!", "", "parent path component (basename of dirname) of \"&\""))
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
+	fmt.Println("  ╓─────────╖ ")
+	fmt.Println("•┊║┊ NOTES ┊║┊")
+	fmt.Println("  ╙─────────╜ ")
+	fmt.Println()
+	fmt.Println(ww.indent + "SERVICE URLs")
+	fmt.Println(ww.indent + "─────── ────")
+	fmt.Println()
 	fmt.Print(ww.wrap("The default server URL prefix is defined with environment",
-		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified. ",
-		"The default REST API URL prefix is defined with environment variable $"+
-			svnAPIIdent, "and used when flag \"-S\" is unspecified. The REST API is",
-		"optional because it is only used for automatic generation of the known SVN",
-		"repository cache (otherwise given with flag \"-f\").",
-		"URLs may include both protocol and port, e.g., \"http://server.com:3690\"."))
+		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified. "))
+	fmt.Println()
+	fmt.Print(ww.wrap("The default REST API URL prefix is defined with",
+		"environment variable $"+svnAPIIdent, "and used when flag \"-S\" is",
+		"unspecified. The REST API is optional because it is only used for",
+		"automatic generation of the known SVN repository cache (otherwise given",
+		"with flag \"-f\")."))
+	fmt.Println()
+	fmt.Print(ww.wrap("URLs may include both protocol and port, e.g.,",
+	"\"http://server.com:3690\"."))
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
+	fmt.Println(ww.indent + "PARAMETER EXPANSIONS")
+	fmt.Println(ww.indent + "───────── ──────────")
 	fmt.Println()
 	fmt.Print(ww.wrap("All arguments following the first occurrence of \"--\" are",
 		"forwarded (in the same order they were given) to each \"svn\" command",
-		"generated. Since the same command may run with multiple repositories,",
-		"placeholder variables may be used in the given command line, which are then",
-		"substituted with attributes from the target repository each time the \"svn\"",
-		"command is run."))
+		"generated."))
 	fmt.Println()
-	ww.indent = "      "
-	fmt.Print(ww.wrap("@ = repository URL (must be first character in word)"))
-	fmt.Print(ww.wrap("^ = repository base name"))
-	fmt.Print(ww.wrap("& = preceding URL/path argument"))
-	fmt.Print(ww.wrap("$ = last path component (basename) of \"&\""))
-	fmt.Print(ww.wrap("! = parent path component (basename of dirname) of \"&\""))
-	ww.indent = "  "
+	fmt.Print(ww.wrap("Since the same command is used when invoking \"svn\" for",
+		"several different repository matches (and so the user doesn't have to",
+		"type fully-qualified URLs), placeholder variables may be used in the",
+		"given command line. These variables are then expanded with attributes",
+		"from each matching repository in each relative \"svn\" command. See",
+		"PARAMETERS section above."))
 	fmt.Println()
 	fmt.Print(ww.wrap("For example, exporting a common tag from all repositories",
 		"with \"DAPA\" in the name (excluding any that match \"Calc\" or \"DIOS\")",
 		"into respectively-named subdirectories of the current directory:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Print(ww.wrap("%", exeName(), "DAPA", "\\!", "Calc", "DIOS", "--",
-		"export @/tags/foo ./^/tags/foo"))
+	fmt.Print(ww.wrap(">", exeName(), "^DAPA", "\\!", "Calc", "DIOS", "--",
+		"export -r 123 @/tags/foo ./^/tags/foo"))
 	ww.indent = "  "
+	fmt.Println()
+	fmt.Print(ww.wrap("The above can be interpreted as:"))
+	fmt.Println()
+	ww.indent = "      "
+	fmt.Println(ww.indent +"\"^DAPA\"        ┆ all repositories matching regex /^DAPA/")
+	fmt.Println(ww.indent +"\"!\"            ┆ excluding following patterns:")
+	fmt.Println(ww.indent +"\"Calc\"         ┆   /Calc/")
+	fmt.Println(ww.indent +"\"DIOS\"         ┆   /DIOS/")
+	fmt.Println(ww.indent +"\"--\"           ┆ end of patterns, begin SVN command")
+	fmt.Println(ww.indent +"\"export\"       ┆ run SVN subcommand \"export\"")
+	fmt.Println(ww.indent +"\"-r 123\"       ┆ revision 123 (export flag \"-r\")")
+	fmt.Println(ww.indent +"\"@/tags/foo\"   ┆ @ (repo URL) followed by \"/tags/foo\"")
+	fmt.Println(ww.indent +"\"./^/tags/foo\" ┆ to local dir named \"^\" (repo base name)")
+	ww.indent = "  "
+	fmt.Println()
+	fmt.Print(ww.wrap("Assuming the patterns above matched the 3 repositories",
+		"below, then the above command would be expanded to execute the following",
+		"3 SVN commands:"))
+	fmt.Println()
+	ww.indent = "      "
+	fmt.Println(ww.indent + "> svn export -r 123 \\")
+	fmt.Println(ww.indent + "      http://server.com:3690/DAPA_Project/tags/foo \\")
+	fmt.Println(ww.indent + "      ./DAPA_Project/tags/foo")
+	fmt.Println(ww.indent + "> svn export -r 123 \\")
+	fmt.Println(ww.indent + "      http://server.com:3690/DAPA_Components/tags/foo \\")
+	fmt.Println(ww.indent + "      ./DAPA_Components/tags/foo")
+	fmt.Println(ww.indent + "> svn export -r 123 \\")
+	fmt.Println(ww.indent + "      http://server.com:3690/DAPA_Utilities/tags/foo \\")
+	fmt.Println(ww.indent + "      ./DAPA_Utilities/tags/foo")
+	ww.indent = "  "
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
+	fmt.Println(ww.indent + "SVN GLOBAL OPTIONS")
+	fmt.Println(ww.indent + "─── ────── ───────")
 	fmt.Println()
 	fmt.Print(ww.wrap("Besides the invoked subcommand's options, the \"svn\"",
 		"command also recognizes several global options that are applicable to all",
-		"subcommands. Shown below, these can be provided via environment variable",
-		"or via command-line flag. If both are provided, the command-line flag takes",
-		"precedence. Multiple global options can be expressed in a single command-line",
-		"flag's argument or by providing the command-line flag multiple times. The",
-		"following examples are all functionally equivalent:"))
+		"subcommands."))
+	fmt.Println()
+	fmt.Print(ww.wrap("Shown below, these are provided via environment variable",
+		"$"+svnARGIdent, "or command-line flag \"-a\". If both are provided, the",
+		"command-line flag takes precedence."))
+	fmt.Println()
+	fmt.Print(ww.wrap("Multiple global options can be expressed in a single",
+		"command-line flag's argument or by providing the command-line flag",
+		"multiple times. The following examples are all functionally equivalent:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo --password=bar\""))
-	fmt.Print(ww.wrap("%", exeName(), "-a \"--username=foo\" -a \"--password=bar\""))
-	fmt.Print(ww.wrap("%", svnARGIdent+"=\"--username=foo --password=bar\"", exeName()))
+	fmt.Print(ww.wrap(">", exeName(), "-a \"--username=foo --password=bar\"", "[...]"))
+	fmt.Print(ww.wrap(">", exeName(), "-a \"--username=foo\" -a \"--password=bar\"", "[...]"))
+	fmt.Print(ww.wrap(">", svnARGIdent+"=\"--username=foo --password=bar\"", exeName(), "[...]"))
 	ww.indent = "  "
 	fmt.Println()
 	fmt.Print(ww.wrap("The global options are \""+defaultArg.String()+"\", by default.",

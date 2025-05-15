@@ -47,7 +47,7 @@ endif
 
 PROJECT   ?= resvn
 IMPORT    ?= github.com/ardnew/$(PROJECT)
-VERSION   ?= 0.11.1
+VERSION   ?= 0.11.2
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
 # If not defined, guess PLATFORM from current GOOS/GOHOSTOS, GOARCH/GOHOSTARCH.
 # When none of these are set, fallback on linux-amd64.
