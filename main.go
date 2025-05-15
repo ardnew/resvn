@@ -96,8 +96,8 @@ func usage(set *flag.FlagSet) {
 		indentFirst, indent, caption := ww.indentFirst, ww.indent, ww.caption
 		ww.indentFirst = false
 		ww.indent = fmt.Sprintf("  %*s ", margin, "")
-		ww.caption = fmt.Sprintf("  %-*s ", margin, 
-			strings.Join([]string{sym,name}, " "))
+		ww.caption = fmt.Sprintf("  %-*s ", margin,
+			strings.Join([]string{sym, name}, " "))
 		result := ww.wrap(desc)
 		ww.indentFirst = indentFirst
 		ww.indent = indent
@@ -114,7 +114,7 @@ func usage(set *flag.FlagSet) {
 				)
 			}
 		}
-		fmt.Print(formatDef(margin+4, name, "-" + f.Name, desc))
+		fmt.Print(formatDef(margin+4, name, "-"+f.Name, desc))
 	})
 	fmt.Println()
 	fmt.Println()
@@ -146,7 +146,7 @@ func usage(set *flag.FlagSet) {
 		"with flag \"-f\")."))
 	fmt.Println()
 	fmt.Print(ww.wrap("URLs may include both protocol and port, e.g.,",
-	"\"http://server.com:3690\"."))
+		"\"http://server.com:3690\"."))
 	fmt.Println()
 	fmt.Println()
 	fmt.Println()
@@ -176,15 +176,15 @@ func usage(set *flag.FlagSet) {
 	fmt.Print(ww.wrap("The above can be interpreted as:"))
 	fmt.Println()
 	ww.indent = "      "
-	fmt.Println(ww.indent +"\"^DAPA\"        ┆ all repositories matching regex /^DAPA/")
-	fmt.Println(ww.indent +"\"!\"            ┆ excluding following patterns:")
-	fmt.Println(ww.indent +"\"Calc\"         ┆   /Calc/")
-	fmt.Println(ww.indent +"\"DIOS\"         ┆   /DIOS/")
-	fmt.Println(ww.indent +"\"--\"           ┆ end of patterns, begin SVN command")
-	fmt.Println(ww.indent +"\"export\"       ┆ run SVN subcommand \"export\"")
-	fmt.Println(ww.indent +"\"-r 123\"       ┆ revision 123 (export flag \"-r\")")
-	fmt.Println(ww.indent +"\"@/tags/foo\"   ┆ @ (repo URL) followed by \"/tags/foo\"")
-	fmt.Println(ww.indent +"\"./^/tags/foo\" ┆ to local dir named \"^\" (repo base name)")
+	fmt.Println(ww.indent + "\"^DAPA\"        ┆ all repositories matching regex /^DAPA/")
+	fmt.Println(ww.indent + "\"!\"            ┆ excluding following patterns:")
+	fmt.Println(ww.indent + "\"Calc\"         ┆   /Calc/")
+	fmt.Println(ww.indent + "\"DIOS\"         ┆   /DIOS/")
+	fmt.Println(ww.indent + "\"--\"           ┆ end of patterns, begin SVN command")
+	fmt.Println(ww.indent + "\"export\"       ┆ run SVN subcommand \"export\"")
+	fmt.Println(ww.indent + "\"-r 123\"       ┆ revision 123 (export flag \"-r\")")
+	fmt.Println(ww.indent + "\"@/tags/foo\"   ┆ @ (repo URL) followed by \"/tags/foo\"")
+	fmt.Println(ww.indent + "\"./^/tags/foo\" ┆ to local dir named \"^\" (repo base name)")
 	ww.indent = "  "
 	fmt.Println()
 	fmt.Print(ww.wrap("Assuming the patterns above matched the 3 repositories",
