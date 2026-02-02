@@ -121,7 +121,11 @@ func usage(set *flag.FlagSet) {
 	fmt.Println(ww.indent + "PARAMETERS")
 	fmt.Println(ww.indent + "──────────")
 	fmt.Println()
-	fmt.Print(formatDef(margin-4, "@", "", "repository URL (must be first character in word)"))
+	fmt.Print(ww.wrap("The following parameters are all relative to each URL",
+		"produced by a given search pattern."))
+	fmt.Println()
+	fmt.Print(formatDef(margin-4, "@", "", "repository URL (must prefix a word)"))
+	fmt.Print(formatDef(margin-4, "%", "", "path relative to server root"))
 	fmt.Print(formatDef(margin-4, "^", "", "repository base name"))
 	fmt.Print(formatDef(margin-4, "&", "", "preceding URL/path argument"))
 	fmt.Print(formatDef(margin-4, "$", "", "last path component (basename) of \"&\""))
@@ -137,7 +141,7 @@ func usage(set *flag.FlagSet) {
 	fmt.Println(ww.indent + "─────── ────")
 	fmt.Println()
 	fmt.Print(ww.wrap("The default server URL prefix is defined with environment",
-		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified. "))
+		"variable $"+svnURLIdent, "and used when flag \"-s\" is unspecified."))
 	fmt.Println()
 	fmt.Print(ww.wrap("The default REST API URL prefix is defined with",
 		"environment variable $"+svnAPIIdent, "and used when flag \"-S\" is",
@@ -485,11 +489,24 @@ func expand(str string, url, base, prec string) string {
 	for len(str) > 0 && str[0] == '@' {
 		str = url + str[1:]
 	}
+
 	prec = trimTrailingRune(prec, '/', false)
 	bn := filepath.Base(prec)
 	pn := filepath.Base(filepath.Dir(prec))
-	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(
-		strings.ReplaceAll(str, "^", base), "&", prec), "$", bn), "!", pn)
+
+	str = strings.ReplaceAll(str, "^", base)
+
+	if root, ok := strings.CutSuffix(url, base); ok {
+		if pr, ok := strings.CutPrefix(prec, root); ok {
+			str = strings.ReplaceAll(str, "%", pr)
+		}
+	}
+
+	str = strings.ReplaceAll(str, "&", prec)
+	str = strings.ReplaceAll(str, "$", bn)
+	str = strings.ReplaceAll(str, "!", pn)
+
+	return str
 }
 
 func nonEmpty(arg ...string) []string {
