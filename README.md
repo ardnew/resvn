@@ -177,6 +177,7 @@ Choose the install method that fits your workflow. For a given version, they all
 
 > [Latest release](https://github.com/ardnew/resvn/releases/latest)
 
+A tarball containing the executable and documentation is published for common OS/arch targets with each release. Check the [releases](https://github.com/ardnew/resvn/releases) page to browse all published versions.
 Each release includes prebuilt tarballs for common OS and CPU combinations. Use the latest release link above, or browse the full [releases](https://github.com/ardnew/resvn/releases) page for older versions.
 
 ### Install with Go
