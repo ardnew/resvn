@@ -1,77 +1,80 @@
-[docimg]:https://godoc.org/github.com/ardnew/resvn?status.svg
-[docurl]:https://godoc.org/github.com/ardnew/resvn
-[repimg]:https://goreportcard.com/badge/github.com/ardnew/resvn
-[repurl]:https://goreportcard.com/report/github.com/ardnew/resvn
-
 # resvn
-#### Run SVN commands on multiple repositories
+
+## Run SVN commands on multiple repositories
 
 [![GoDoc][docimg]][docurl] [![Go Report Card][repimg]][repurl]
 
-```
-github.com/ardnew/resvn 0.11.2 darwin-arm64 main@f42551a 2025-05-15T18:36:37Z
+```text
+github.com/ardnew/resvn v0.12.0 darwin-arm64 main@b71c374 2026-05-20T19:05:54Z
 
-  ╓─────────╖ 
-•┊║┊ USAGE ┊║┊
-  ╙─────────╜ 
+A tool for running SVN commands across multiple repositories.
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│  USAGE                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
 
   resvn [flags] [match ...] [! ignore ...] [-- command ...]
 
 
-         ╭┈┄╌                         ╌┄┈╮
-  FLAGS  │ mnemonics shown in [brackets] │
-  ─────  ╰┈┄╌                         ╌┄┈╯
+   FLAGS • mnemonics shown in [brackets]
+  ─────── ───────────────────────────────
 
-  -L path        use file path contents as [login] arguments
-                 {"/Users/fsds/.svnauth"}
-  -S url         use [server] url to construct REST API queries
-                 {"http://svn.devnet:3343"}
-  -a arg         append each [argument] arg to all SVN commands
-  -c             use [case]-sensitive matching
-  -d             print commands which would be executed ([dry-run])
-  -f path        use repository definitions from [file] path
-                 {"/Users/fsds/.svnrepo"}
-  -l user:pass   use user:pass to authenticate with SVN or REST API ([login])
-  -o             use logical-[or] matching if multiple patterns given
-  -q             suppress all non-essential and error messages ([quiet])
-  -s url         use [server] url to construct all URLs
-                 {"http://svn.devnet:3690"}
-  -u             [update] cached repository definitions from server
-  -w             construct [web] URLs instead of repository URLs
+  -L string    deprecated: SSH auth is handled by your SSH command
+  -S command   use [shell] command to update repository cache via SSH
+  -W url       use [web] url to construct browsing URLs
+  -a arg       append each [argument] arg to all SVN commands
+  -c           use [case]-sensitive matching
+  -d           print commands which would be executed ([dry-run])
+  -f path      use repository definitions from [file] path
+               {"/Users/andrew/.svnrepo"}
+  -l string    deprecated: SSH auth is handled by your SSH command
+  -o           use logical-[or] matching if multiple patterns given
+  -q           suppress all non-essential and error messages ([quiet])
+  -s url       use [server] url to construct all URLs {"http://svn.devnet:3690"}
+  -u           [update] cached repository definitions from server
+  -w           construct [web] URLs instead of repository URLs
 
 
-  PARAMETERS
-  ──────────
+   PARAMETERS
+  ────────────
 
-   @     repository URL (must be first character in word)
-   ^     repository base name
-   &     preceding URL/path argument
-   $     last path component (basename) of "&"
-   !     parent path component (basename of dirname) of "&"
+  The following parameters are all relative to each URL produced by a given
+  search pattern.
+
+   @   repository URL (must prefix a word)
+   %   path relative to server root
+   ^   repository base name
+   &   preceding URL/path argument
+   $   last path component (basename) of "&"
+   !   parent path component (basename of dirname) of "&"
 
 
+╭──────────────────────────────────────────────────────────────────────────────╮
+│  NOTES                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
 
-  ╓─────────╖ 
-•┊║┊ NOTES ┊║┊
-  ╙─────────╜ 
-
-  SERVICE URLs
-  ─────── ────
+   SERVICE URLs
+  ──────────────
 
   The default server URL prefix is defined with environment variable $RESVN_URL
   and used when flag "-s" is unspecified.
 
-  The default REST API URL prefix is defined with environment variable
-  $RESVN_API and used when flag "-S" is unspecified. The REST API is optional
-  because it is only used for automatic generation of the known SVN repository
-  cache (otherwise given with flag "-f").
+  The default Web browsing URL prefix is defined with environment variable
+  $RESVN_WEB and used when flag "-W" is unspecified. When neither is provided,
+  Web URLs default to $RESVN_URL/viewvc.
+
+  The SSH command used to refresh the repository cache is defined with
+  environment variable $RESVN_SSH and used when flag "-S" is unspecified. The
+  command must print one repository name per line.
+
+  The legacy environment variable $RESVN_API is no longer used for cache
+  refresh.
 
   URLs may include both protocol and port, e.g., "http://server.com:3690".
 
 
-
-  PARAMETER EXPANSIONS
-  ───────── ──────────
+   PARAMETER EXPANSIONS
+  ──────────────────────
 
   All arguments following the first occurrence of "--" are forwarded (in the
   same order they were given) to each "svn" command generated.
@@ -114,9 +117,8 @@ github.com/ardnew/resvn 0.11.2 darwin-arm64 main@f42551a 2025-05-15T18:36:37Z
             ./DAPA_Utilities/tags/foo
 
 
-
-  SVN GLOBAL OPTIONS
-  ─── ────── ───────
+   SVN GLOBAL OPTIONS
+  ────────────────────
 
   Besides the invoked subcommand's options, the "svn" command also recognizes
   several global options that are applicable to all subcommands.
@@ -136,62 +138,84 @@ github.com/ardnew/resvn 0.11.2 darwin-arm64 main@f42551a 2025-05-15T18:36:37Z
   The global options are "--force-interactive", by default. If either
   environment variable or command-line flag are provided, they will take
   precedence and omit the default option(s).
-
 ```
 
-# Usage
+## Usage
 
-First, please read the command-line usage reference that is output with the help flag `-h` (also copied above).
+Run `resvn -h` for the built-in reference. The current output is copied above.
 
 ### Update repository cache
 
-`resvn` operates primarily with a plain-text file, or cache, that defines all known repositories. The format of this file is simply one repository name per line. Each line should be the repository base name *only* (not a full URL). For example, a repository at URL `http://svn.host:3690/svn/Team` would be represented by a single line containing only `Team`. The full URL is generated by `resvn` using a combination of these repository names, the server URL prefix given with flag `-s` (or the default URL from environment variable `$RESVN_URL`), and the presence of flag `-w`.
+`resvn` uses a plain-text cache file with one repository name per line. Each line should contain only the repository base name, not a full URL.
 
-Instead of creating and maintaining this cache manually, `resvn` is capable of requesting a list of all repositories from the SVN server and updating the cache automatically. When called with flag `-u`, and optionally flag `-l` if SVN credentials are not cached locally, the SVN server REST API is queried and results are written to a cache file in your current directory, overwriting any that already exists. You can copy this repository cache to your ${HOME} directory, and it will be used as the default cache when calling `resvn` without flag `-f`.
+From that cache, `resvn` builds full repository URLs with `-s` or `$RESVN_URL`. If you use `-w`, browse URLs come from `-W` or `$RESVN_WEB`, or fall back to `$RESVN_URL/viewvc`.
 
-# Install
+Use `-u` to refresh the cache automatically. `resvn` runs the command from `-S` or `$RESVN_SSH`, reads one repository name per line from standard output, normalizes the list, and overwrites the cache file in the current directory. If you keep that file at `${HOME}/.svnrepo`, `resvn` will use it by default when `-f` is not set.
 
-A few different options are available for installing. Version numbers being equal, there's no functional difference between them.
+For example:
 
-### Download executable
+```sh
+RESVN_SSH="ssh -p 22135 -l andrew rstok3-dev02 -- ls -1 /srv/svn/repos" \
+  resvn -u -s http://rstok3-dev02
+```
+
+`$RESVN_API` is no longer used. For `-u`, `-l` and `-L` are deprecated; handle SSH authentication with your SSH config, agent, or command options instead.
+
+If your browse URL differs from your checkout URL:
+
+```sh
+RESVN_URL="http://rstok3-dev02" \
+RESVN_WEB="https://rstok3-dev02/svn" \
+  resvn -w '^Team'
+```
+
+## Install
+
+Choose the install method that fits your workflow. For a given version, they all produce the same tool.
+
+### Download a release
 
 > [Latest release](https://github.com/ardnew/resvn/releases/latest)
 
-A zip package containing the executable and documentation is created for each of the most common OS/arch targets for every released version. Check out the [releases](https://github.com/ardnew/resvn/releases) page to see all versions available. 
+Each release includes prebuilt tarballs for common OS and CPU combinations. Use the latest release link above, or browse the full [releases](https://github.com/ardnew/resvn/releases) page for older versions.
 
-### Compile from source code
+### Install with Go
+
+For Go 1.17 and later, use `go install` with an explicit version.
+
+Latest release:
+
+```sh
+go install github.com/ardnew/resvn@latest
+```
+
+Tip of `main`:
+
+```sh
+go install github.com/ardnew/resvn@main
+```
+
+Pinned version:
+
+```sh
+go install github.com/ardnew/resvn@v0.12.0
+```
+
+### Build from source
+
+Clone the repository, build the binary, and install it into a directory on your `PATH`.
 
 ```sh
 # Clone the repository
-git clone https://github.com/ardnew/resvn
+git clone https://github.com/ardnew/resvn.git
 cd resvn
-# Compile executable
-go build -v .
-# Install somewhere in your $PATH
-sudo cp resvn /usr/local/bin
+# Build the executable
+go build -o resvn .
+# Install it into a directory on your PATH
+install -m 0755 resvn /usr/local/bin/resvn
 ```
 
-### Build and install using only Go toolchain
-
-#### Current Go version 1.16 and later:
-
-###### Latest release
-```sh
-go install -v github.com/ardnew/resvn@latest
-```
-
-###### Tip of a branch (active development is `main`)
-```sh
-go install -v github.com/ardnew/resvn@main
-```
-
-###### Unique tag
-```sh
-go install -v github.com/ardnew/resvn@v0.6.2
-```
-
-#### Legacy Go version 1.15 and earlier:
-
-```sh
-GO111MODULE=off go get -v github.com/ardnew/resvn
-```
+[docimg]:https://godoc.org/github.com/ardnew/resvn?status.svg
+[docurl]:https://godoc.org/github.com/ardnew/resvn
+[repimg]:https://goreportcard.com/badge/github.com/ardnew/resvn
+[repurl]:https://goreportcard.com/report/github.com/ardnew/resvn

@@ -1,37 +1,24 @@
+// Package cache manages the local repository cache used by resvn.
 package cache
 
 import (
 	"bufio"
-	"errors"
+	"bytes"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
-
-	"github.com/go-resty/resty/v2"
-)
-
-const (
-	apiHost     = "rstok3-dev02"
-	apiPort     = 3343
-	apiProtocol = "http"
-	apiFormat   = "json"
-	apiVersion  = "1"
-	apiURLRoot  = "csvn/api/" + apiVersion
-)
-
-const (
-	authRealm = "CollabNet Subversion Repository"
 )
 
 type Cache struct {
-	FilePath     string
-	AuthFilePath string
-	List         []string
+	FilePath string
+	List     []string
 }
 
 func findFile(name string, defaultPath string) (path string) {
@@ -67,26 +54,25 @@ func findFile(name string, defaultPath string) (path string) {
 	return ""
 }
 
-func New(name, auth string) *Cache {
+func New(name string) *Cache {
 	return &Cache{
-		FilePath:     findFile(name, "."),
-		AuthFilePath: findFile(auth, ""),
-		List:         []string{},
+		FilePath: findFile(name, "."),
+		List:     []string{},
 	}
 }
 
-func (c *Cache) Sync(filePath string, update bool, url string, user string, pass string) error {
+func (c *Cache) Sync(filePath string, update bool, sshCmd string) error {
 
 	c.FilePath = filePath
 	c.List = []string{} // clear existing list
 
 	if update {
-		url = strings.TrimSpace(url)
-		if url == "" {
-			return fmt.Errorf("undefined REST API URL: try help (-h)")
+		sshCmd = strings.TrimSpace(sshCmd)
+		if sshCmd == "" {
+			return fmt.Errorf("undefined SSH command: set RESVN_SSH or use -S")
 		}
 		// write all repos to a new temporary file
-		tmp, err := c.update(url, user, pass)
+		tmp, err := c.update(sshCmd)
 		if nil != err {
 			return err
 		}
@@ -115,6 +101,31 @@ func (c *Cache) Sync(filePath string, update bool, url string, user string, pass
 	}
 
 	return nil
+}
+
+func parseRepoList(r io.Reader) ([]string, error) {
+	scan := bufio.NewScanner(r)
+	repos := make([]string, 0)
+	seen := make(map[string]struct{})
+	for scan.Scan() {
+		repo := strings.TrimSpace(scan.Text())
+		if repo == "" {
+			continue
+		}
+		if strings.ContainsAny(repo, `/\\`) {
+			return nil, fmt.Errorf("invalid repository name %q", repo)
+		}
+		if _, ok := seen[repo]; ok {
+			continue
+		}
+		seen[repo] = struct{}{}
+		repos = append(repos, repo)
+	}
+	if err := scan.Err(); err != nil {
+		return nil, err
+	}
+	sort.Strings(repos)
+	return repos, nil
 }
 
 func (c *Cache) Match(
@@ -171,50 +182,30 @@ func (c *Cache) Match(
 	return m, nil
 }
 
-type apiRespRepo struct {
-	Repo []apiRepo `json:"repositories"`
-}
-
-type apiRepo struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	RepoURL string `json:"svnUrl"`
-	ViewURL string `json:"viewvcUrl"`
-	Status  string `json:"status"`
-}
-
-func (c *Cache) update(url string, user string, pass string) (*os.File, error) {
-
-	apiURL := fmt.Sprintf("%s/%s", url, apiURLRoot)
-
-	api := resty.New().
-		SetDisableWarn(true).
-		SetRetryCount(3).
-		SetHostURL(apiURL)
-
-	var err error
-	if user == "" && pass == "" {
-		user, pass, err = cachedCredentials(authRealm)
+func (c *Cache) update(sshCmd string) (*os.File, error) {
+	argv := strings.Fields(sshCmd)
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("undefined SSH command: set RESVN_SSH or use -S")
 	}
-	if err == errAgentCachedCredentials {
-		log.Printf("using agent-based cached credentials (%s): %s", pass, user)
-	} else {
-		if err != nil {
-			return nil, err
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			return nil, fmt.Errorf("%w: %s", err, msg)
 		}
-		api.SetBasicAuth(user, pass)
-	}
-
-	resp := apiRespRepo{}
-	_, err = api.R().
-		SetHeader("Accept", "application/"+apiFormat).
-		SetQueryParams(map[string]string{"format": apiFormat}).
-		SetResult(&resp).
-		Get("/repository")
-	if nil != err {
 		return nil, err
 	}
-	log.Printf("received %d repositories\n", len(resp.Repo))
+
+	repos, err := parseRepoList(&stdout)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("received %d repositories\n", len(repos))
 
 	// first write the response to a temporary file and then move it in place of
 	// our selected repo definitions file. in case of an error, we won't lose an
@@ -225,42 +216,11 @@ func (c *Cache) update(url string, user string, pass string) (*os.File, error) {
 	}
 	defer repoFile.Close()
 
-	for _, r := range resp.Repo {
-		if _, err := fmt.Fprintln(repoFile, r.Name); nil != err {
+	for _, repo := range repos {
+		if _, err := fmt.Fprintln(repoFile, repo); nil != err {
 			return nil, err
 		}
 	}
 
 	return repoFile, nil
-}
-
-var errAgentCachedCredentials = errors.New("credentials cached via authentication agent")
-
-func cachedCredentials(realm string) (user string, pass string, err error) {
-	c := exec.Command("svn", "auth", "--show-passwords", realm)
-	r, err := regexp.Compile(`(?mi)^(Password|Password cache|Username):\s*(.*)$`)
-	if nil != err {
-		return "", "", err
-	}
-	e := errors.New("SVN credentials not cached (see -h for help authenticating)")
-	o, err := c.CombinedOutput()
-	if nil != err {
-		return "", "", e
-	}
-	s := r.FindAllSubmatch(o, 2)
-	if s == nil {
-		return "", "", e
-	}
-	for _, u := range s {
-		switch strings.ToLower(string(u[1])) {
-		case "username":
-			user = string(u[2])
-		case "password":
-			pass = string(u[2])
-		case "password cache":
-			pass = string(u[2])
-			err = errAgentCachedCredentials
-		}
-	}
-	return
 }
