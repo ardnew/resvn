@@ -5,7 +5,7 @@ moddir := $(shell go list -f '{{.Dir}}' .)
 modimp := $(shell go list -f '{{.ImportPath}}' .)
 
 _ := $(shell git fetch --tags --quiet 2>/dev/null)
-semver := $(or $(VERSION),$(shell git describe --tags --abbrev=0 2>/dev/null))
+semver := $(patsubst v%,%,$(or $(VERSION),$(shell git describe --tags --abbrev=0 2>/dev/null)))
 
 PROJECT   ?= $(modpkg)
 IMPORT    ?= $(modimp)
