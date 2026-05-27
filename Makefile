@@ -32,15 +32,19 @@ arch = $(lastword $(subst -, ,$(1)))
 
 .PHONY: all generate version dist clean distclean $(platform) $(dist) $(clean) $(distclean)
 
-all: $(platform)
-
 # double-hyphen prevents usage from command-line.
 # Make will interpret it as an invalid option and exit.
 .PHONY: --force
 
+all: $(platform)
+
 # An empty recipe is always considered out of date.
 # Any targets that depend on it will always be rebuilt.
 --force:
+
+bump-major bump-minor bump-patch:
+	@v=$$(go tool over --$(subst bump-,,$@) < $(moddir)/VERSION) && echo "$$v" > $(moddir)/VERSION
+	@echo "$(moddir) version $$(cat $(moddir)/VERSION)"
 
 generate: version
 	go generate -v ./...
